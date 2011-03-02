@@ -10,12 +10,23 @@ endif
 
 pinpoint_LDADD  = $(DEPS_LIBS)
 pinpoint_SOURCES = \
-  pinpoint.c \
-  pinpoint.h \
+  pinpoint-main.c \
+  pinpoint-main.h \
   pp-cairo.c \
   pp-clutter.c \
   gst-video-thumbnailer.c \
   $(DAX_SOURCES)
+
+if BUILD_LIBRARY
+lib_LTLIBRARIES = libpinpoint-@PP_API_VERSION@.la
+
+libpinpoint_@PP_API_VERSION@_la_SOURCES = \
+  pinpoint.c
+
+libpinpoint_@PP_API_VERSION@_includedir = $(includedir)/pinpoint-@PP_API_VERSION@/pinpoint
+libpinpoint_@PP_API_VERSION@_include_HEADERS = \
+  pinpoint.h
+endif
 
 EXTRA_DIST=sample.txt wth.jpg bg.jpg pp-super-aa.c pp-super-aa.h
 

@@ -21,7 +21,7 @@
  *             Emmanuele Bassi <ebassi@linux.intel.com>
  */
 
-#include "pinpoint.h"
+#include "pinpoint-main.h"
 #include <clutter/x11/clutter-x11.h>
 #include <gio/gio.h>
 #ifdef USE_CLUTTER_GST
@@ -46,6 +46,7 @@ static ClutterColor black = {0x00,0x00,0x00,0xff};
 typedef struct _ClutterRenderer
 {
   PinPointRenderer renderer;
+  PinPointData    *data;
   GHashTable      *bg_cache;    /* only load the same backgrounds once */
   ClutterActor    *stage;
   ClutterActor    *background;
@@ -99,8 +100,8 @@ static gboolean key_pressed   (ClutterActor     *actor,
                                ClutterRenderer  *renderer);
 
 
-static void pp_set_fullscreen (ClutterStage  *stage,
-                               gboolean       fullscreen)
+static void pp_set_fullscreen (ClutterRenderer  *renderer,
+                               gboolean          fullscreen)
 {
   static gboolean is_fullscreen = FALSE;
   static gfloat old_width=640, old_height=480;
@@ -113,15 +114,16 @@ static void pp_set_fullscreen (ClutterStage  *stage,
     unsigned long status;
   } MWMHints = { 2, 0, 0, 0, 0};
 
-  Display *xdisplay = clutter_x11_get_default_display ();
-  int      xscreen  = clutter_x11_get_default_screen ();
-  Atom     wm_hints = XInternAtom(xdisplay, "_MOTIF_WM_HINTS", True);
-  Window   xwindow  = clutter_x11_get_stage_window (stage);
+  Display      *xdisplay = clutter_x11_get_default_display ();
+  int           xscreen  = clutter_x11_get_default_screen ();
+  Atom          wm_hints = XInternAtom(xdisplay, "_MOTIF_WM_HINTS", True);
+  ClutterStage *stage    = CLUTTER_STAGE (renderer->stage);
+  Window        xwindow  = clutter_x11_get_stage_window (stage);
 
-  if (!pp_maximized)
+  if (!renderer->data->pp_maximized)
     return clutter_stage_set_fullscreen (stage, fullscreen);
 
-  pp_fullscreen = fullscreen;
+  renderer->data->pp_fullscreen = fullscreen;
   if (is_fullscreen == fullscreen)
     return;
   is_fullscreen = fullscreen;
@@ -152,11 +154,11 @@ static void pp_set_fullscreen (ClutterStage  *stage,
     }
 }
 
-static gboolean pp_get_fullscreen (ClutterStage *stage)
+static gboolean pp_get_fullscreen (ClutterRenderer *renderer)
 {
-  if (!pp_maximized)
-    return clutter_stage_get_fullscreen (stage);
-  return pp_fullscreen;
+  if (!renderer->data->pp_maximized)
+    return clutter_stage_get_fullscreen (CLUTTER_STAGE (renderer->stage));
+  return renderer->data->pp_fullscreen;
 }
 
 static void
@@ -183,10 +185,10 @@ activate_commandline (ClutterRenderer *renderer)
   PinPointPoint *point;
   ClutterPointData *data;
 
-  if (!pp_slidep)
+  if (!renderer->data->pp_slidep)
     return;
  
-  point = pp_slidep->data;
+  point = renderer->data->pp_slidep->data;
   data = point->data;
 
   clutter_actor_animate (renderer->commandline,
@@ -207,7 +209,7 @@ static gboolean commandline_cancel_cb (ClutterActor *actor,
                                        gpointer      data)
 {
   ClutterRenderer *renderer = CLUTTER_RENDERER (data);
-  PinPointPoint *point = pp_slidep->data;
+  PinPointPoint *point = renderer->data->pp_slidep->data;
 
   if (clutter_event_type (event) == CLUTTER_KEY_PRESS &&
       (clutter_event_get_key_symbol (event) == CLUTTER_Escape ||
@@ -231,7 +233,7 @@ static gboolean commandline_action_cb (ClutterActor *actor,
                                        gpointer      data)
 {
   ClutterRenderer *renderer = CLUTTER_RENDERER (data);
-  PinPointPoint *point = pp_slidep->data;
+  PinPointPoint *point = renderer->data->pp_slidep->data;
   clutter_actor_grab_key_focus (renderer->stage);
   clutter_actor_animate (renderer->commandline,
                          CLUTTER_LINEAR, 500,
@@ -258,9 +260,9 @@ static void commandline_notify_cb (ClutterActor *actor,
   clutter_actor_set_scale (actor, scale, scale);
 }
 
-static gboolean stage_motion (ClutterActor *actor,
-                              ClutterEvent *event,
-                              gpointer      renderer)
+static gboolean stage_motion (ClutterActor    *actor,
+                              ClutterEvent    *event,
+                              ClutterRenderer *renderer)
 {
   gfloat stage_width, stage_height;
 
@@ -269,10 +271,10 @@ static gboolean stage_motion (ClutterActor *actor,
   clutter_stage_show_cursor (CLUTTER_STAGE (actor));
   hide_cursor = g_timeout_add (500, hide_cursor_cb, actor);
 
-  if (!pp_get_fullscreen (CLUTTER_STAGE (actor)))
+  if (!pp_get_fullscreen (renderer))
     return FALSE;
 
-  clutter_actor_get_size (CLUTTER_RENDERER (renderer)->stage, &stage_width, &stage_height);
+  clutter_actor_get_size (renderer->stage, &stage_width, &stage_height);
 #ifdef QUICK_ACCESS_LEFT
   if (event->motion.x < 8)
     {
@@ -282,11 +284,13 @@ static gboolean stage_motion (ClutterActor *actor,
     {
       float d = event->motion.x / stage_width;
 #endif
-      if (pp_slidep)
+      if (renderer->data->pp_slidep)
         {
           leave_slide (renderer, FALSE);
         }
-      pp_slidep = g_list_nth (pp_slides, g_list_length (pp_slides) * d);
+      renderer->data->pp_slidep =
+        g_list_nth (renderer->data->pp_slides,
+                    g_list_length (renderer->data->pp_slides) * d);
       show_slide (renderer, FALSE);
     }
 
@@ -295,12 +299,14 @@ static gboolean stage_motion (ClutterActor *actor,
 
 static void
 clutter_renderer_init (PinPointRenderer   *pp_renderer,
-                       char               *pinpoint_file)
+                       char               *pinpoint_file,
+                       PinPointData       *data)
 {
   ClutterRenderer *renderer = CLUTTER_RENDERER (pp_renderer);
   GFileMonitor *monitor;
   ClutterActor *stage;
 
+  renderer->data = data;
   renderer->rest_y = STARTPOS;
 
   renderer->stage = stage = clutter_stage_get_default ();
@@ -345,8 +351,8 @@ clutter_renderer_init (PinPointRenderer   *pp_renderer,
 
   clutter_stage_set_user_resizable (CLUTTER_STAGE (stage), TRUE);
 
-  if (pp_fullscreen)
-    pp_set_fullscreen (CLUTTER_STAGE (stage), TRUE);
+  if (renderer->data->pp_fullscreen)
+    pp_set_fullscreen (renderer, TRUE);
 
   renderer->path = pinpoint_file;
   if (renderer->path)
@@ -547,19 +553,19 @@ key_pressed (ClutterActor    *actor,
     {
       case CLUTTER_Left:
       case CLUTTER_Up:
-        if (pp_slidep && pp_slidep->prev)
+        if (renderer->data->pp_slidep && renderer->data->pp_slidep->prev)
           {
             leave_slide (renderer, TRUE);
-            pp_slidep = pp_slidep->prev;
+            renderer->data->pp_slidep = renderer->data->pp_slidep->prev;
             show_slide (renderer, TRUE);
           }
         break;
       case CLUTTER_BackSpace:
       case CLUTTER_Prior:
-        if (pp_slidep && pp_slidep->prev)
+        if (renderer->data->pp_slidep && renderer->data->pp_slidep->prev)
           {
             leave_slide (renderer, TRUE);
-            pp_slidep = pp_slidep->prev;
+            renderer->data->pp_slidep = renderer->data->pp_slidep->prev;
             show_slide (renderer, TRUE);
           }
         break;
@@ -567,10 +573,10 @@ key_pressed (ClutterActor    *actor,
       case CLUTTER_space:
       case CLUTTER_Next:
       case CLUTTER_Down:
-        if (pp_slidep && pp_slidep->next)
+        if (renderer->data->pp_slidep && renderer->data->pp_slidep->next)
           {
             leave_slide (renderer, FALSE);
-            pp_slidep = pp_slidep->next;
+            renderer->data->pp_slidep = renderer->data->pp_slidep->next;
             show_slide (renderer, FALSE);
           }
         break;
@@ -578,8 +584,8 @@ key_pressed (ClutterActor    *actor,
         clutter_main_quit ();
         break;
       case CLUTTER_F11:
-        pp_set_fullscreen (CLUTTER_STAGE (renderer->stage),
-                           !pp_get_fullscreen (CLUTTER_STAGE (renderer->stage)));
+        pp_set_fullscreen (renderer,
+                           !pp_get_fullscreen (renderer));
         break;
       case CLUTTER_Return:
         action_slide (renderer);
@@ -595,7 +601,7 @@ key_pressed (ClutterActor    *actor,
 static void leave_slide (ClutterRenderer *renderer,
                          gboolean         backwards)
 {
-  PinPointPoint *point = pp_slidep->data;
+  PinPointPoint *point = renderer->data->pp_slidep->data;
   ClutterPointData *data = point->data;
 
   if (!point->transition)
@@ -680,10 +686,10 @@ action_slide (ClutterRenderer *renderer)
   ClutterPointData *data;
   const char *command = NULL;
 
-  if (!pp_slidep)
+  if (!renderer->data->pp_slidep)
     return;
  
-  point = pp_slidep->data;
+  point = renderer->data->pp_slidep->data;
   data = point->data;
 
   if (data->state)
@@ -721,7 +727,7 @@ static void update_commandline_shading (ClutterRenderer *renderer)
    float shading_x, shading_y, shading_width, shading_height;
    const char *command;
    PinPointPoint *point;
-   point = pp_slidep->data;
+   point = renderer->data->pp_slidep->data;
    clutter_actor_get_size (renderer->commandline, &text_width, &text_height);
    clutter_actor_get_position (renderer->commandline, &text_x, &text_y);
    pp_get_shading_position_size (clutter_actor_get_width (renderer->stage),
@@ -754,10 +760,10 @@ show_slide (ClutterRenderer *renderer, gboolean backwards)
   ClutterPointData *data;
   ClutterColor color;
 
-  if (!pp_slidep)
+  if (!renderer->data->pp_slidep)
     return;
  
-  point = pp_slidep->data;
+  point = renderer->data->pp_slidep->data;
   data = point->data;
 
   if (point->stage_color)

@@ -21,8 +21,8 @@
  *             Emmanuele Bassi <ebassi@linux.intel.com>
  */
 
-#ifndef __PINPOINT_H__
-#define __PINPOINT_H__
+#ifndef __PINPOINT_MAIN_H__
+#define __PINPOINT_MAIN_H__
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -58,10 +58,21 @@ typedef enum
 
 #define PINPOINT_RENDERER(renderer) ((PinPointRenderer *) renderer)
 
+typedef struct
+{
+  char      *pp_output_filename;
+  gboolean   pp_fullscreen;
+  gboolean   pp_maximized;
+
+  GList *pp_slides;  /* List of slide text */
+  GList *pp_slidep;  /* Current slide */
+} PinPointData;
+
 struct _PinPointRenderer
 {
   void      (*init)          (PinPointRenderer  *renderer,
-                              char              *pinpoint_file);
+                              char              *pinpoint_file,
+                              PinPointData      *data);
   void      (*run)           (PinPointRenderer *renderer);
   void      (*finalize)      (PinPointRenderer *renderer);
   gboolean  (*make_point)    (PinPointRenderer *renderer,
@@ -95,13 +106,6 @@ struct _PinPointPoint
 
   void              *data;            /* the renderer can attach data here */
 };
-
-extern char      *pp_output_filename;
-extern gboolean   pp_fullscreen;
-extern gboolean   pp_maximized;
-
-extern GList *pp_slides;
-extern GList *pp_slidep;
 
 void     pp_parse_slides  (PinPointRenderer *renderer,
                            const char       *slide_src);

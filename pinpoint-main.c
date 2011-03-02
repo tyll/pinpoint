@@ -29,10 +29,11 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-#include "pinpoint.h"
+#ifdef USE_CLUTTER_GST
+#include <clutter-gst/clutter-gst.h>
+#endif
 
-GList *pp_slides      = NULL; /* list of slide text */
-GList *pp_slidep      = NULL; /* current slide */
+#include "pinpoint-main.h"
 
 typedef struct
 {
@@ -72,20 +73,18 @@ static PinPointPoint default_point = {
   .data = NULL,
 };
 
-char      *pp_output_filename;
-gboolean   pp_fullscreen = FALSE;
-gboolean   pp_maximized = FALSE;
+static PinPointData data = { 0, };
 
 static GOptionEntry entries[] =
 {
-    { "maximized", 'm', 0, G_OPTION_ARG_NONE, &pp_maximized,
+    { "maximized", 'm', 0, G_OPTION_ARG_NONE, &data.pp_maximized,
     "Maximize without window decoration, instead\n"
 "                                         of fullscreening, this is useful\n"
 "                                         to enable window management when running\n"
 "                                         [command=] spawned apps.", NULL},
-    { "fullscreen", 'f', 0, G_OPTION_ARG_NONE, &pp_fullscreen,
+    { "fullscreen", 'f', 0, G_OPTION_ARG_NONE, &data.pp_fullscreen,
     "Start in fullscreen mode", NULL},
-    { "output", 'o', 0, G_OPTION_ARG_STRING, &pp_output_filename,
+    { "output", 'o', 0, G_OPTION_ARG_STRING, &data.pp_output_filename,
       "Output presentation to FILE\n"
 "                                         (formats supported: pdf)", "FILE" },
     { NULL }
@@ -141,7 +140,8 @@ main (int    argc,
 #endif
 
   /* select the cairo renderer if we have requested pdf output */
-  if (pp_output_filename && g_str_has_suffix (pp_output_filename, ".pdf"))
+  if (data.pp_output_filename &&
+      g_str_has_suffix (data.pp_output_filename, ".pdf"))
     {
 #ifdef HAVE_PDF
       renderer = pp_cairo_renderer ();
@@ -153,7 +153,7 @@ main (int    argc,
 #endif
     }
 
-  renderer->init (renderer, argv[1]);
+  renderer->init (renderer, argv[1], &data);
 
   pp_parse_slides (renderer, text);
   g_free (text);
@@ -163,7 +163,7 @@ main (int    argc,
   if (renderer->source)
     g_free (renderer->source);
 
-  g_list_free (pp_slides);
+  g_list_free (data.pp_slides);
 
   return 0;
 }
@@ -471,11 +471,11 @@ pp_parse_slides (PinPointRenderer *renderer,
     }
   renderer->source = g_strdup (slide_src);
 
-  for (s = pp_slides; s; s = s->next)
+  for (s = data.pp_slides; s; s = s->next)
     pin_point_free (renderer, s->data);
 
-  g_list_free (pp_slides);
-  pp_slides = NULL;
+  g_list_free (data.pp_slides);
+  data.pp_slides = NULL;
   point = pin_point_new (renderer);
 
   /* parse the slides, constructing lists of objects, adding all generated
@@ -570,7 +570,7 @@ pp_parse_slides (PinPointRenderer *renderer,
                   g_string_assign (slide_str, "");
                   g_string_assign (setting_str, "");
 
-                  pp_slides = g_list_append (pp_slides, point);
+                  data.pp_slides = g_list_append (data.pp_slides, point);
                   point = next_point;
                 }
             }
@@ -595,8 +595,8 @@ pp_parse_slides (PinPointRenderer *renderer,
   g_string_free (slide_str, TRUE);
   g_string_free (setting_str, TRUE);
 
-  if (g_list_nth (pp_slides, slideno))
-    pp_slidep = g_list_nth (pp_slides, slideno);
+  if (g_list_nth (data.pp_slides, slideno))
+    data.pp_slidep = g_list_nth (data.pp_slides, slideno);
   else
-    pp_slidep = pp_slides;
+    data.pp_slidep = data.pp_slides;
 }

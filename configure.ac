@@ -1,14 +1,38 @@
+m4_define([pp_major], [0])
+m4_define([pp_minor], [0])
+m4_define([pp_micro], [0])
+
+m4_define([pp_version], [pp_major.pp_minor.pp_micro])
+m4_define([pp_api_version], [0.0])
+
+# increase the interface age of 2 for each release
+# set to 0 if the API changes
+m4_define([pp_interface_age], [0])
+m4_define([pp_binary_age], [m4_eval(100 * pp_minor + pp_micro)])
+
 AC_PREREQ(2.53)
 AC_INIT(pinpoint, [0.0], [])
-AC_CONFIG_SRCDIR(pinpoint.c)
+AC_CONFIG_SRCDIR(pinpoint-main.c)
 AC_CONFIG_AUX_DIR([build])
 AM_INIT_AUTOMAKE([foreign -Wno-portability no-define])
 AM_CONFIG_HEADER([config.h])
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 
 AC_PROG_CC
+AC_PROG_LIBTOOL
 PKG_PROG_PKG_CONFIG
 AC_HEADER_STDC
+
+PP_MAJOR_VERSION=pp_major
+PP_MINOR_VERSION=pp_minor
+PP_MICRO_VERSION=pp_micro
+PP_VERSION=pp_version
+PP_API_VERSION=pp_api_version
+AC_SUBST(PP_MAJOR_VERSION)
+AC_SUBST(PP_MINOR_VERSION)
+AC_SUBST(PP_MICRO_VERSION)
+AC_SUBST(PP_VERSION)
+AC_SUBST(PP_API_VERSION)
 
 PINPOINT_DEPS="clutter-1.0 >= 1.3 gio-2.0 cairo-pdf pangocairo gdk-pixbuf-2.0"
 
@@ -98,6 +122,13 @@ AS_IF([test "x$use_dax" = "xyes"], [
        AC_DEFINE([USE_DAX], [1], [Whether pinpoint will use Dax])])
 AM_CONDITIONAL([USE_DAX], [test "x$use_dax" = "xyes"])
 
+# Library support
+AC_ARG_ENABLE([library],
+              [AS_HELP_STRING([--enable-library=@<:no/yes:>@],
+                              [Build a library for use in external apps])],,
+                              [enable_library=no])
+AM_CONDITIONAL([BUILD_LIBRARY], [test "x$enable_library" = "xyes"])
+
 PKG_CHECK_MODULES([DEPS], [$PINPOINT_DEPS])
 
 AC_OUTPUT([
@@ -112,6 +143,7 @@ echo""
 echo " • General"
 echo "       prefix: ${prefix}"
 echo "       cflags: ${MAINTAINER_CFLAGS}"
+echo "       building library: ${enable_library}"
 
 echo ""
 echo " • Slides' background"

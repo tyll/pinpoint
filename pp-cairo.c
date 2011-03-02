@@ -21,7 +21,7 @@
  *             Emmanuele Bassi <ebassi@linux.intel.com>
  */
 
-#include "pinpoint.h"
+#include "pinpoint-main.h"
 
 #ifdef HAVE_PDF
 #include <cairo.h>
@@ -41,6 +41,7 @@
 typedef struct _CairoRenderer
 {
   PinPointRenderer renderer;
+  PinPointData *data;
   GHashTable *surfaces;         /* keep cairo_surface_t around for source
                                    images as we wantt to only include one
                                    instance of the image when using it in
@@ -70,12 +71,14 @@ _destroy_surface (gpointer data)
 
 static void
 cairo_renderer_init (PinPointRenderer *pp_renderer,
-                     char             *pinpoint_file)
+                     char             *pinpoint_file,
+                     PinPointData     *data)
 {
   CairoRenderer *renderer = CAIRO_RENDERER (pp_renderer);
 
   /* A4, landscape */
-  renderer->surface = cairo_pdf_surface_create (pp_output_filename,
+  renderer->data = data;
+  renderer->surface = cairo_pdf_surface_create (data->pp_output_filename,
                                                 A4_LS_WIDTH, A4_LS_HEIGHT);
 
   renderer->ctx = cairo_create (renderer->surface);
@@ -482,7 +485,7 @@ cairo_renderer_run (PinPointRenderer *pp_renderer)
   CairoRenderer *renderer = CAIRO_RENDERER (pp_renderer);
   GList *cur;
 
-  for (cur = pp_slides; cur; cur = g_list_next (cur))
+  for (cur = renderer->data->pp_slides; cur; cur = g_list_next (cur))
     _cairo_render_page (renderer, cur->data);
 }
 
