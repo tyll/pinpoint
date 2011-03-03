@@ -60,9 +60,10 @@ typedef enum
 
 typedef struct
 {
-  char      *pp_output_filename;
-  gboolean   pp_fullscreen;
-  gboolean   pp_maximized;
+  char         *pp_output_filename;
+  gboolean      pp_fullscreen;
+  gboolean      pp_maximized;
+  ClutterActor *pp_container;
 
   GList *pp_slides;  /* List of slide text */
   GList *pp_slidep;  /* Current slide */

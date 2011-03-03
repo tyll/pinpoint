@@ -29,6 +29,9 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+#include <clutter/clutter.h>
+#include <clutter/x11/clutter-x11.h>
+
 #ifdef USE_CLUTTER_GST
 #include <clutter-gst/clutter-gst.h>
 #endif
@@ -95,6 +98,85 @@ PinPointRenderer *pp_clutter_renderer (void);
 PinPointRenderer *pp_cairo_renderer   (void);
 #endif
 
+static void pp_set_fullscreen (gboolean fullscreen)
+{
+  static gboolean is_fullscreen = FALSE;
+  static gfloat old_width=640, old_height=480;
+
+  struct {
+    unsigned long flags;
+    unsigned long functions;
+    unsigned long decorations;
+    long inputMode;
+    unsigned long status;
+  } MWMHints = { 2, 0, 0, 0, 0};
+
+  Display      *xdisplay = clutter_x11_get_default_display ();
+  int           xscreen  = clutter_x11_get_default_screen ();
+  Atom          wm_hints = XInternAtom(xdisplay, "_MOTIF_WM_HINTS", True);
+  ClutterStage *stage    = CLUTTER_STAGE (clutter_stage_get_default ());
+  Window        xwindow  = clutter_x11_get_stage_window (stage);
+
+  if (!data.pp_maximized)
+    return clutter_stage_set_fullscreen (stage, fullscreen);
+
+  data.pp_fullscreen = fullscreen;
+  if (is_fullscreen == fullscreen)
+    return;
+
+  is_fullscreen = fullscreen;
+
+  if (fullscreen)
+    {
+      int full_width = DisplayWidth (xdisplay, xscreen);
+      int full_height = DisplayHeight (xdisplay, xscreen)+5; /* avoid being detected as fullscreen */
+      clutter_actor_get_size (CLUTTER_ACTOR (stage), &old_width, &old_height);
+
+      if (wm_hints != None)
+        XChangeProperty (xdisplay, xwindow, wm_hints, wm_hints, 32,
+                         PropModeReplace, (guchar*)&MWMHints,
+                         sizeof(MWMHints)/sizeof(long));
+      clutter_actor_set_size (CLUTTER_ACTOR (stage), full_width, full_height);
+      XMoveResizeWindow (xdisplay, xwindow,
+                         0, 0, full_width, full_height);
+    }
+  else
+    {
+      MWMHints.decorations = 7;
+      if (wm_hints != None )
+        XChangeProperty (xdisplay, xwindow, wm_hints, wm_hints, 32,
+                         PropModeReplace, (guchar*)&MWMHints,
+                         sizeof(MWMHints)/sizeof(long));
+      clutter_stage_set_fullscreen (stage, FALSE);
+      clutter_actor_set_size (CLUTTER_ACTOR (stage), old_width, old_height);
+    }
+}
+
+static gboolean pp_get_fullscreen ()
+{
+  if (!data.pp_maximized)
+    return clutter_stage_get_fullscreen (CLUTTER_STAGE (clutter_stage_get_default ()));
+  return data.pp_fullscreen;
+}
+
+static gboolean
+key_pressed (ClutterActor *actor,
+             ClutterEvent *event)
+{
+  if (event && (event->type == CLUTTER_KEY_PRESS)) /* There is no event for the first triggering */
+    switch (clutter_event_get_key_symbol (event))
+      {
+        case CLUTTER_Escape:
+          clutter_main_quit ();
+          return TRUE;
+        case CLUTTER_F11:
+          pp_set_fullscreen (!pp_get_fullscreen ());
+          return TRUE;
+      }
+
+  return FALSE;
+}
+
 int
 main (int    argc,
       char **argv)
@@ -103,6 +185,7 @@ main (int    argc,
   GOptionContext *context;
   GError *error = NULL;
   char   *text = NULL;
+  gboolean use_clutter = TRUE;
 
   renderer = pp_clutter_renderer ();
 
@@ -147,10 +230,42 @@ main (int    argc,
       renderer = pp_cairo_renderer ();
       /* makes more sense to default to a white "stage" colour in PDFs*/
       default_point.stage_color = "white";
+      use_clutter = FALSE;
 #else
       g_warning ("Pinpoint was built without PDF support");
       return EXIT_FAILURE;
 #endif
+    }
+  else
+    {
+      /* Setup the stage and container with size-binding if we're
+       * in 'normal' (Clutter) mode.
+       */
+      ClutterConstraint *bind_width, *bind_height;
+
+      ClutterLayoutManager *layout =
+        clutter_bin_layout_new (CLUTTER_BIN_ALIGNMENT_FIXED,
+                                CLUTTER_BIN_ALIGNMENT_FIXED);
+
+      ClutterActor *stage = clutter_stage_get_default ();
+
+      clutter_stage_set_user_resizable (CLUTTER_STAGE (stage), TRUE);
+      g_signal_connect (stage, "captured-event",
+                        G_CALLBACK (key_pressed), NULL);
+
+      data.pp_container = clutter_box_new (layout);
+      clutter_actor_set_clip_to_allocation (data.pp_container, TRUE);
+      clutter_container_add_actor (CLUTTER_CONTAINER (stage),
+                                   data.pp_container);
+      clutter_actor_grab_key_focus (data.pp_container);
+
+      bind_width = clutter_bind_constraint_new (stage, CLUTTER_BIND_WIDTH, 0);
+      bind_height = clutter_bind_constraint_new (stage, CLUTTER_BIND_HEIGHT, 0);
+      clutter_actor_add_constraint (data.pp_container, bind_width);
+      clutter_actor_add_constraint (data.pp_container, bind_height);
+
+      if (data.pp_fullscreen)
+        pp_set_fullscreen (TRUE);
     }
 
   renderer->init (renderer, argv[1], &data);
@@ -159,6 +274,13 @@ main (int    argc,
   g_free (text);
 
   renderer->run (renderer);
+
+  if (use_clutter)
+    {
+      clutter_actor_show (clutter_stage_get_default ());
+      clutter_main ();
+    }
+
   renderer->finalize (renderer);
   if (renderer->source)
     g_free (renderer->source);
