@@ -281,9 +281,9 @@ main (int    argc,
       clutter_main ();
     }
 
-  renderer->finalize (renderer);
   if (renderer->source)
     g_free (renderer->source);
+  renderer->finalize (renderer);
 
   g_list_free (data.pp_slides);
 

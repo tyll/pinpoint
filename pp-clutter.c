@@ -323,8 +323,9 @@ clutter_renderer_finalize (PinPointRenderer *pp_renderer)
   if (renderer->reload_tag)
     g_source_remove (renderer->reload_tag);
 
-  clutter_actor_destroy (renderer->data->pp_container);
   g_hash_table_unref (renderer->bg_cache);
+
+  g_free (renderer);
 }
 
 static ClutterActor *
@@ -1053,5 +1054,5 @@ static ClutterRenderer clutter_renderer_vtable =
 
 PinPointRenderer *pp_clutter_renderer (void)
 {
-  return (void*)&clutter_renderer_vtable;
+  return g_memdup (&clutter_renderer_vtable, sizeof (ClutterRenderer));
 }
