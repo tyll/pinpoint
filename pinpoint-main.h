@@ -60,6 +60,7 @@ typedef enum
 
 typedef struct
 {
+  char         *pp_input_filename;
   char         *pp_output_filename;
   gboolean      pp_fullscreen;
   gboolean      pp_maximized;
@@ -71,9 +72,9 @@ typedef struct
 
 struct _PinPointRenderer
 {
-  void      (*init)          (PinPointRenderer  *renderer,
-                              char              *pinpoint_file,
-                              PinPointData      *data);
+  void      (*init)          (PinPointRenderer *renderer,
+                              const char       *pinpoint_file,
+                              PinPointData     *data);
   void      (*run)           (PinPointRenderer *renderer);
   void      (*finalize)      (PinPointRenderer *renderer);
   gboolean  (*make_point)    (PinPointRenderer *renderer,
@@ -109,6 +110,7 @@ struct _PinPointPoint
 };
 
 void     pp_parse_slides  (PinPointRenderer *renderer,
+                           PinPointData     *data,
                            const char       *slide_src);
 
 void

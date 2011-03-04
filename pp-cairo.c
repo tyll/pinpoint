@@ -71,7 +71,7 @@ _destroy_surface (gpointer data)
 
 static void
 cairo_renderer_init (PinPointRenderer *pp_renderer,
-                     char             *pinpoint_file,
+                     const char       *pinpoint_file,
                      PinPointData     *data)
 {
   CairoRenderer *renderer = CAIRO_RENDERER (pp_renderer);

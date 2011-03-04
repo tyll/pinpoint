@@ -1,0 +1,11 @@
+prefix=@prefix@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${exec_prefix}/include
+
+Name: Pinpoint
+Description: A Clutter-based presentation library
+Version: @VERSION@
+Libs: -L${libdir} -lpinpoint-@PP_API_VERSION@
+Cflags: -I${includedir}/pinpoint-@PP_API_VERSION@
+Requires: clutter-1.0

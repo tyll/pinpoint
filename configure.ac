@@ -122,17 +122,11 @@ AS_IF([test "x$use_dax" = "xyes"], [
        AC_DEFINE([USE_DAX], [1], [Whether pinpoint will use Dax])])
 AM_CONDITIONAL([USE_DAX], [test "x$use_dax" = "xyes"])
 
-# Library support
-AC_ARG_ENABLE([library],
-              [AS_HELP_STRING([--enable-library=@<:no/yes:>@],
-                              [Build a library for use in external apps])],,
-                              [enable_library=no])
-AM_CONDITIONAL([BUILD_LIBRARY], [test "x$enable_library" = "xyes"])
-
 PKG_CHECK_MODULES([DEPS], [$PINPOINT_DEPS])
 
 AC_OUTPUT([
-	Makefile
+        Makefile
+        pinpoint.pc
         transitions/Makefile
 ])
 
@@ -143,7 +137,6 @@ echo""
 echo " • General"
 echo "       prefix: ${prefix}"
 echo "       cflags: ${MAINTAINER_CFLAGS}"
-echo "       building library: ${enable_library}"
 
 echo ""
 echo " • Slides' background"

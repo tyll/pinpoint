@@ -243,7 +243,7 @@ static gboolean stage_motion (ClutterActor    *actor,
 
 static void
 clutter_renderer_init (PinPointRenderer   *pp_renderer,
-                       char               *pinpoint_file,
+                       const char         *pinpoint_file,
                        PinPointData       *data)
 {
   ClutterRenderer *renderer = CLUTTER_RENDERER (pp_renderer);
@@ -296,7 +296,7 @@ clutter_renderer_init (PinPointRenderer   *pp_renderer,
                     G_CALLBACK (commandline_notify_cb), renderer);
 
 
-  renderer->path = pinpoint_file;
+  renderer->path = g_strdup (pinpoint_file);
   if (renderer->path)
     {
       monitor = g_file_monitor (g_file_new_for_commandline_arg (pinpoint_file),
@@ -306,7 +306,7 @@ clutter_renderer_init (PinPointRenderer   *pp_renderer,
     }
 
   renderer->bg_cache = g_hash_table_new_full (g_str_hash, g_str_equal,
-                                              NULL, _destroy_surface);
+                                              g_free, _destroy_surface);
 }
 
 static void
@@ -325,6 +325,8 @@ clutter_renderer_finalize (PinPointRenderer *pp_renderer)
 
   g_hash_table_unref (renderer->bg_cache);
 
+  g_free (renderer->path);
+
   g_free (renderer);
 }
 
@@ -333,11 +335,21 @@ _clutter_get_texture (ClutterRenderer *renderer,
                       const char      *file)
 {
   ClutterActor *source;
+  gchar *full_path = NULL;
 
   source = g_hash_table_lookup (renderer->bg_cache, file);
   if (source)
     {
       return clutter_clone_new (source);
+    }
+
+  if (renderer->path)
+    {
+      gchar *dir = g_path_get_dirname (renderer->path);
+      full_path = g_build_filename (dir, file, NULL);
+      g_free (dir);
+
+      file = full_path;
     }
 
   source = g_object_new (CLUTTER_TYPE_TEXTURE,
@@ -352,7 +364,8 @@ _clutter_get_texture (ClutterRenderer *renderer,
                                source);
   clutter_actor_hide (source);
 
-  g_hash_table_insert (renderer->bg_cache, (char *) file, source);
+  g_hash_table_insert (renderer->bg_cache, (char *) g_strdup (file), source);
+  g_free (full_path);
 
   return clutter_clone_new (source);
 }
@@ -699,12 +712,14 @@ show_slide (ClutterRenderer *renderer, gboolean backwards)
   ClutterPointData *data;
   ClutterColor color;
   gfloat width, height;
+  ClutterActorBox box;
 
   if (!renderer->data->pp_slidep)
     return;
 
-  clutter_actor_get_size (renderer->data->pp_container,
-                          &width, &height);
+  clutter_actor_get_allocation_box (renderer->data->pp_container, &box);
+  width = box.x2 - box.x1;
+  height = box.y2 - box.y1;
 
   point = renderer->data->pp_slidep->data;
   data = point->data;
@@ -1020,7 +1035,7 @@ reload (gpointer data)
   if (!g_file_get_contents (renderer->path, &text, NULL, NULL))
     g_error ("failed to load slides from %s\n", renderer->path);
   renderer->rest_y = STARTPOS;
-  pp_parse_slides (PINPOINT_RENDERER (renderer), text);
+  pp_parse_slides (PINPOINT_RENDERER (renderer), renderer->data, text);
   g_free (text);
   show_slide(renderer, FALSE);
   renderer->reload_tag = 0;
