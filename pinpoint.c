@@ -46,7 +46,7 @@ static EnumDescription PPTextAlign_desc[] =
 #define PINPOINT_RENDERER(renderer) ((PinPointRenderer *) renderer)
 
 static PinPointPoint default_point = {
-  .stage_color = "white",
+  .stage_color = "black",
 
   .bg = "NULL",
   .bg_type = PP_BG_NONE,
@@ -55,11 +55,11 @@ static PinPointPoint default_point = {
   .text = NULL,
   .position = CLUTTER_GRAVITY_CENTER,
   .font = "Sans 60px",
-  .text_color = "black",
+  .text_color = "white",
   .text_align = PP_TEXT_LEFT,
   .use_markup = TRUE,
 
-  .shading_color = "white",
+  .shading_color = "black",
   .shading_opacity = 0.66,
   .transition = NULL,
 
