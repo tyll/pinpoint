@@ -335,21 +335,11 @@ _clutter_get_texture (ClutterRenderer *renderer,
                       const char      *file)
 {
   ClutterActor *source;
-  gchar *full_path = NULL;
 
   source = g_hash_table_lookup (renderer->bg_cache, file);
   if (source)
     {
       return clutter_clone_new (source);
-    }
-
-  if (renderer->path)
-    {
-      gchar *dir = g_path_get_dirname (renderer->path);
-      full_path = g_build_filename (dir, file, NULL);
-      g_free (dir);
-
-      file = full_path;
     }
 
   source = g_object_new (CLUTTER_TYPE_TEXTURE,
@@ -365,7 +355,6 @@ _clutter_get_texture (ClutterRenderer *renderer,
   clutter_actor_hide (source);
 
   g_hash_table_insert (renderer->bg_cache, (char *) g_strdup (file), source);
-  g_free (full_path);
 
   return clutter_clone_new (source);
 }
@@ -377,8 +366,19 @@ clutter_renderer_make_point (PinPointRenderer *pp_renderer,
 {
   ClutterRenderer *renderer = CLUTTER_RENDERER (pp_renderer);
   ClutterPointData *data = point->data;
+  const gchar *file = point->bg;
+  gchar *full_path = NULL;
   ClutterColor color;
   gboolean ret;
+
+  if (point->bg_type != PP_BG_COLOR && renderer->path && file)
+    {
+      gchar *dir = g_path_get_dirname (renderer->path);
+      full_path = g_build_filename (dir, file, NULL);
+      g_free (dir);
+
+      file = full_path;
+    }
 
   switch (point->bg_type)
     {
@@ -394,13 +394,13 @@ clutter_renderer_make_point (PinPointRenderer *pp_renderer,
       }
       break;
     case PP_BG_IMAGE:
-      data->background = _clutter_get_texture (renderer, point->bg);
+      data->background = _clutter_get_texture (renderer, file);
       ret = TRUE;
       break;
     case PP_BG_VIDEO:
 #ifdef USE_CLUTTER_GST
       data->background = clutter_gst_video_texture_new ();
-      clutter_media_set_filename (CLUTTER_MEDIA (data->background), point->bg);
+      clutter_media_set_filename (CLUTTER_MEDIA (data->background), file);
       /* should pre-roll the video and set the size */
       clutter_actor_set_size (data->background, 400, 300);
       ret = TRUE;
@@ -414,7 +414,7 @@ clutter_renderer_make_point (PinPointRenderer *pp_renderer,
 
         aa = pp_super_aa_new ();
         pp_super_aa_set_resolution (PP_SUPER_AA (aa), 2, 2);
-        svg = dax_actor_new_from_file (point->bg, &error);
+        svg = dax_actor_new_from_file (file, &error);
         mx_offscreen_set_pick_child (MX_OFFSCREEN (aa), TRUE);
         clutter_container_add_actor (CLUTTER_CONTAINER (aa),
                                      svg);
@@ -424,7 +424,7 @@ clutter_renderer_make_point (PinPointRenderer *pp_renderer,
         if (data->background == NULL)
           {
             g_warning ("Could not open SVG file %s: %s",
-                       point->bg, error->message);
+                       file, error->message);
             g_clear_error (&error);
           }
         ret = data->background != NULL;
@@ -434,6 +434,8 @@ clutter_renderer_make_point (PinPointRenderer *pp_renderer,
     default:
       g_assert_not_reached();
     }
+
+  g_free (full_path);
 
   if (data->background)
     {
