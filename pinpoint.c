@@ -113,6 +113,7 @@ gboolean  pp_fullscreen      = FALSE;
 gboolean  pp_maximized       = FALSE;
 gboolean  pp_speakermode     = FALSE;
 gboolean  pp_rehearse        = FALSE;
+gboolean  pp_ignore_comments = FALSE;
 char     *pp_camera_device   = NULL;
 
 static GOptionEntry entries[] =
@@ -128,6 +129,8 @@ static GOptionEntry entries[] =
     "Show speakermode window", NULL},
     { "rehearse", 'r', 0, G_OPTION_ARG_NONE, &pp_rehearse,
     "Rehearse timings", NULL},
+    { "ignore-comments", 'i', 0, G_OPTION_ARG_NONE, &pp_ignore_comments,
+    "don't show comments", NULL},
     { "output", 'o', 0, G_OPTION_ARG_STRING, &pp_output_filename,
       "Output presentation to FILE\n"
 "                                         (formats supported: pdf)", "FILE" },
@@ -949,7 +952,7 @@ pp_parse_slides (PinPointRenderer *renderer,
               }
             break;
         case '#': /* comment */
-          if (startofline)
+          if (startofline && ! pp_ignore_comments)
             {
               const char *end = p + 1;
               while (*end != '\n' && *end != '\0')
