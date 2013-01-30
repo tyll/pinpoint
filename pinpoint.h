@@ -86,6 +86,7 @@ struct _PinPointPoint
   const gchar       *bg;
   PPBackgroundType   bg_type;
   PPBackgroundScale  bg_scale;
+  ClutterGravity     bg_position;
 
   const char        *text;            /*  the text of the slide */
   ClutterGravity     position;

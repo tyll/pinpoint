@@ -55,6 +55,19 @@ static EnumDescription PPTextAlign_desc[] =
   { NULL,     0 }
 };
 
+static EnumDescription PPGravity_desc[] =
+{
+  { "center",       CLUTTER_GRAVITY_CENTER },
+  { "top-left",     CLUTTER_GRAVITY_NORTH_WEST },
+  { "left",         CLUTTER_GRAVITY_WEST },
+  { "bottom-left",  CLUTTER_GRAVITY_SOUTH_WEST },
+  { "center",       CLUTTER_GRAVITY_CENTER },
+  { "top-right",    CLUTTER_GRAVITY_NORTH_EAST },
+  { "right",        CLUTTER_GRAVITY_EAST },
+  { "bottom-right", CLUTTER_GRAVITY_SOUTH_EAST },
+  { NULL,     0 }
+};
+
 #define PINPOINT_RENDERER(renderer) ((PinPointRenderer *) renderer)
 
 /* pinpoint defaults */
@@ -64,6 +77,7 @@ static PinPointPoint pin_default_point = {
   .bg = NULL,
   .bg_type = PP_BG_NONE,
   .bg_scale = PP_BG_FIT,
+  .bg_position = CLUTTER_GRAVITY_CENTER,
 
   .text = NULL,
   .position = CLUTTER_GRAVITY_CENTER,
@@ -312,8 +326,42 @@ pp_get_background_position_scale (PinPointPoint *point,
       *bg_scale_y = h_scale;
       break;
     }
-  *bg_x = (stage_width - bg_width * *bg_scale_x) / 2;
-  *bg_y = (stage_height - bg_height * *bg_scale_y) / 2;
+
+  switch (point->bg_position)
+    {
+      case CLUTTER_GRAVITY_EAST:
+      case CLUTTER_GRAVITY_NORTH_EAST:
+      case CLUTTER_GRAVITY_SOUTH_EAST:
+        *bg_x = stage_width * 0.95 - bg_width * *bg_scale_x;
+        break;
+      case CLUTTER_GRAVITY_WEST:
+      case CLUTTER_GRAVITY_NORTH_WEST:
+      case CLUTTER_GRAVITY_SOUTH_WEST:
+        *bg_x = stage_width * 0.05;
+        break;
+      case CLUTTER_GRAVITY_CENTER:
+      default:
+        *bg_x = (stage_width - bg_width * *bg_scale_x) / 2;
+        break;
+    }
+
+  switch (point->bg_position)
+    {
+      case CLUTTER_GRAVITY_SOUTH:
+      case CLUTTER_GRAVITY_SOUTH_EAST:
+      case CLUTTER_GRAVITY_SOUTH_WEST:
+        *bg_y = stage_height * 0.95 - bg_height * *bg_scale_y;
+        break;
+      case CLUTTER_GRAVITY_NORTH:
+      case CLUTTER_GRAVITY_NORTH_EAST:
+      case CLUTTER_GRAVITY_NORTH_WEST:
+        *bg_y = stage_height * 0.05;
+        break;
+      case CLUTTER_GRAVITY_CENTER:
+      default:
+        *bg_y = (stage_height - bg_height * *bg_scale_y) / 2;
+        break;
+    }
 }
 
 void
@@ -468,6 +516,7 @@ parse_setting (PinPointPoint *point,
   IF_EQUAL("fit")          point->bg_scale = PP_BG_FIT;
   IF_EQUAL("stretch")      point->bg_scale = PP_BG_STRETCH;
   IF_EQUAL("unscaled")     point->bg_scale = PP_BG_UNSCALED;
+  IF_PREFIX("bg-position=") ENUM(point->bg_position, PPGravity, STRING);
   IF_EQUAL("center")       point->position = CLUTTER_GRAVITY_CENTER;
   IF_EQUAL("top")          point->position = CLUTTER_GRAVITY_NORTH;
   IF_EQUAL("bottom")       point->position = CLUTTER_GRAVITY_SOUTH;
@@ -598,6 +647,33 @@ static void serialize_slide_config (GString       *str,
           case PP_BG_FIT:      g_string_append (str, "[fit]");      break;
           case PP_BG_STRETCH:  g_string_append (str, "[stretch]");  break;
           case PP_BG_UNSCALED: g_string_append (str, "[unscaled]"); break;
+        }
+    }
+
+  if (point->bg_position != reference->bg_position)
+    {
+      g_string_append(str, separator);
+      switch (point->bg_position)
+        {
+          case CLUTTER_GRAVITY_NONE:
+          case CLUTTER_GRAVITY_CENTER:
+            break;
+          case CLUTTER_GRAVITY_NORTH:
+            g_string_append (str, "[bg-position=top]");break;
+          case CLUTTER_GRAVITY_SOUTH:
+            g_string_append (str, "[bg-position=bottom]");break;
+          case CLUTTER_GRAVITY_WEST:
+            g_string_append (str, "[bg-position=left]");break;
+          case CLUTTER_GRAVITY_EAST:
+            g_string_append (str, "[bg-position=right]");break;
+          case CLUTTER_GRAVITY_NORTH_WEST:
+            g_string_append (str, "[bg-position=top-left]");break;
+          case CLUTTER_GRAVITY_NORTH_EAST:
+            g_string_append (str, "[bg-position=top-right]");break;
+          case CLUTTER_GRAVITY_SOUTH_WEST:
+            g_string_append (str, "[bg-position=bottom-left]");break;
+          case CLUTTER_GRAVITY_SOUTH_EAST:
+            g_string_append (str, "[bg-position=bottom-right]");break;
         }
     }
 
