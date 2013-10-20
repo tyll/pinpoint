@@ -488,6 +488,17 @@ static void commandline_notify_cb (ClutterActor *actor,
   clutter_actor_set_scale (actor, scale, scale);
 }
 
+static gboolean stage_left (ClutterActor *actor,
+                            ClutterEvent *event,
+                            gpointer      renderer)
+{
+  if (hide_cursor)
+    g_source_remove (hide_cursor);
+
+  hide_cursor = 0;
+  clutter_stage_show_cursor (CLUTTER_STAGE (actor));
+}
+
 static gboolean stage_motion (ClutterActor *actor,
                               ClutterEvent *event,
                               gpointer      renderer)
@@ -999,6 +1010,8 @@ clutter_renderer_init (PinPointRenderer   *pp_renderer,
                     G_CALLBACK (stage_resized), renderer);
   g_signal_connect (stage, "motion-event",
                     G_CALLBACK (stage_motion), renderer);
+  g_signal_connect (stage, "leave-event",
+                    G_CALLBACK (stage_left), renderer);
   g_signal_connect (renderer->commandline, "activate",
                     G_CALLBACK (commandline_action_cb), renderer);
   g_signal_connect (renderer->commandline, "captured-event",
