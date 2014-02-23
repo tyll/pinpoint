@@ -36,10 +36,10 @@ push_buffer (GstElement *element,
              GstPad     *pad,
              GstBuffer  *in_buffer)
 {
-    gst_buffer_set_caps (out_buffer, GST_BUFFER_CAPS (in_buffer));
-    GST_BUFFER_SIZE (out_buffer) = GST_BUFFER_SIZE (in_buffer);
-    memcpy (GST_BUFFER_DATA (out_buffer), GST_BUFFER_DATA (in_buffer),
-            GST_BUFFER_SIZE (in_buffer));
+    gst_buffer_copy_into (out_buffer, in_buffer,
+                          GST_BUFFER_COPY_ALL,
+                          0,
+                          -1);
 }
 
 static void
@@ -52,7 +52,8 @@ pull_buffer (GstElement *element,
 }
 
 GdkPixbuf *
-convert_buffer_to_pixbuf (GstBuffer    *buffer,
+convert_buffer_to_pixbuf (GstCaps      *caps,
+                          GstBuffer    *buffer,
                           GCancellable *cancellable)
 {
     GstCaps *pb_caps;
@@ -66,7 +67,7 @@ convert_buffer_to_pixbuf (GstBuffer    *buffer,
     int dw, dh, i;
     GstStructure *s;
 
-    s = gst_caps_get_structure (GST_BUFFER_CAPS (buffer), 0);
+    s = gst_caps_get_structure (caps, 0);
     gst_structure_get_int (s, "width", &dw);
     gst_structure_get_int (s, "height", &dh);
 
@@ -95,7 +96,7 @@ convert_buffer_to_pixbuf (GstBuffer    *buffer,
     g_object_set (src,
                   "num-buffers", 1,
                   "sizetype", 2,
-                  "sizemax", GST_BUFFER_SIZE (buffer),
+                  "sizemax", gst_buffer_get_size (buffer),
                   "signal-handoffs", TRUE,
                   NULL);
     g_signal_connect (src, "handoff",
@@ -149,16 +150,20 @@ convert_buffer_to_pixbuf (GstBuffer    *buffer,
     gst_caps_unref (pb_caps);
 
     if (out_buffer) {
-        GdkPixbuf *pixbuf;
-        char *data;
+        GdkPixbuf *pixbuf = NULL;
+        GstMapInfo info;
+        gchar *data;
 
-        data = g_memdup (GST_BUFFER_DATA (out_buffer),
-                         GST_BUFFER_SIZE (out_buffer));
-        pixbuf = gdk_pixbuf_new_from_data ((guchar *) data,
-                                           GDK_COLORSPACE_RGB, FALSE,
-                                           8, dw, dh, GST_ROUND_UP_4 (dw * 3),
-                                           (GdkPixbufDestroyNotify) g_free,
-                                           NULL);
+        if (gst_buffer_map (out_buffer, &info, GST_MAP_READ)) {
+            data = g_memdup (info.data, info.size);
+            pixbuf = gdk_pixbuf_new_from_data ((guchar *) data,
+                                               GDK_COLORSPACE_RGB, FALSE,
+                                               8, dw, dh, GST_ROUND_UP_4 (dw * 3),
+                                               (GdkPixbufDestroyNotify) g_free,
+                                               NULL);
+
+            gst_buffer_unmap (out_buffer, &info);
+        }
 
         gst_buffer_unref (buffer);
         return pixbuf;
@@ -170,7 +175,7 @@ convert_buffer_to_pixbuf (GstBuffer    *buffer,
 
 GdkPixbuf *
 gst_video_thumbnailer_get_shot (const gchar  *location,
-          GCancellable *cancellable)
+                                GCancellable *cancellable)
 {
     GstElement *playbin, *audio_sink, *video_sink;
     GstStateChangeReturn state;
@@ -214,12 +219,13 @@ gst_video_thumbnailer_get_shot (const gchar  *location,
 
     if (state != GST_STATE_CHANGE_FAILURE &&
         state != GST_STATE_CHANGE_ASYNC) {
-        GstFormat format = GST_FORMAT_TIME;
         gint64 duration;
 
-        if (gst_element_query_duration (playbin, &format, &duration)) {
+        if (gst_element_query_duration (playbin, GST_FORMAT_TIME, &duration)) {
             gint64 seekpos;
             GstBuffer *frame;
+            GstPad *pad;
+            GstCaps *caps;
 
             if (duration > 0) {
                 if (duration / (3 * GST_SECOND) > 90) {
@@ -255,7 +261,13 @@ gst_video_thumbnailer_get_shot (const gchar  *location,
                 goto finish;
             }
 
-            shot = convert_buffer_to_pixbuf (frame, cancellable);
+            pad = gst_element_get_static_pad (video_sink, "sink");
+            caps = gst_pad_get_current_caps (pad);
+            shot = convert_buffer_to_pixbuf (caps, frame, cancellable);
+
+            gst_caps_unref (caps);
+            g_object_unref (pad);
+
         }
     }
 
