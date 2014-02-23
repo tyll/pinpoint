@@ -49,16 +49,16 @@ AC_ARG_ENABLE([cluttergst],
 AC_MSG_CHECKING([for the stuff needed to show media files])
 AS_CASE([$enable_cluttergst],
 	[no], [have_cluttergst="no (disabled)"],
-	[yes], [PKG_CHECK_EXISTS([clutter-gst-1.0 >= 1.3],
+	[yes], [PKG_CHECK_EXISTS([clutter-gst-2.0 >= 2.0],
                                  have_cluttergst="yes",
                                  AC_MSG_ERROR([Oh no!]))],
-	[auto], [PKG_CHECK_EXISTS([clutter-gst-1.0 >= 1.3],
+	[auto], [PKG_CHECK_EXISTS([clutter-gst-2.0 >= 2.0],
 				  have_cluttergst="yes",
 				  have_cluttergst="no")],
 	AC_MSG_ERROR([invalid argumented passed to --enable-cluttergst]))
 AC_MSG_RESULT([$have_cluttergst])
 AS_IF([test "x$have_cluttergst" = "xyes"], [
-       PINPOINT_DEPS="$PINPOINT_DEPS clutter-gst-1.0 >= 1.3"
+       PINPOINT_DEPS="$PINPOINT_DEPS clutter-gst-2.0 >= 2.0"
        AC_DEFINE([USE_CLUTTER_GST], [1], [Whether pinpoint will display media files using ClutterGst])])
 AM_CONDITIONAL([USE_CLUTTER_GST], [test "x$have_cluttergst" = "xyes"])
 
