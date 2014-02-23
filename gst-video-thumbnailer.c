@@ -26,150 +26,37 @@
 
 #include <gio/gio.h>
 #include <gst/gst.h>
+#include <gst/app/app.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
 #include "gst-video-thumbnailer.h"
-
-static void
-push_buffer (GstElement *element,
-             GstBuffer  *out_buffer,
-             GstPad     *pad,
-             GstBuffer  *in_buffer)
-{
-    gst_buffer_copy_into (out_buffer, in_buffer,
-                          GST_BUFFER_COPY_ALL,
-                          0,
-                          -1);
-}
-
-static void
-pull_buffer (GstElement *element,
-             GstBuffer  *in_buffer,
-             GstPad     *pad,
-             GstBuffer **out_buffer)
-{
-    *out_buffer = gst_buffer_ref (in_buffer);
-}
 
 GdkPixbuf *
 convert_buffer_to_pixbuf (GstCaps      *caps,
                           GstBuffer    *buffer,
                           GCancellable *cancellable)
 {
-    GstCaps *pb_caps;
-    GstElement *pipeline;
-    GstBuffer *out_buffer = NULL;
-    GstElement *src, *sink, *colorspace, *scale, *filter;
-    GstBus *bus;
-    GstMessage *msg;
-    GstStateChangeReturn state G_GNUC_UNUSED;
-    gboolean ret;
-    int dw, dh, i;
+    GstMapInfo info;
+    int dw, dh;
     GstStructure *s;
 
     s = gst_caps_get_structure (caps, 0);
     gst_structure_get_int (s, "width", &dw);
     gst_structure_get_int (s, "height", &dh);
 
-    pb_caps = gst_caps_new_simple ("video/x-raw-rgb",
-                                   "bpp", G_TYPE_INT, 24,
-                                   "depth", G_TYPE_INT, 24,
-                                   "width", G_TYPE_INT, dw,
-                                   "height", G_TYPE_INT, dh,
-                                   "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
-                                   NULL);
+    if (gst_buffer_map (buffer, &info, GST_MAP_READ)) {
+        gchar *data = g_memdup (info.data, info.size);
+        GdkPixbuf *pixbuf = gdk_pixbuf_new_from_data ((guchar *) data,
+                                                      GDK_COLORSPACE_RGB, FALSE,
+                                                      8, dw, dh, GST_ROUND_UP_4 (dw * 3),
+                                                      (GdkPixbufDestroyNotify) g_free,
+                                                      NULL);
 
-    pipeline = gst_pipeline_new ("pipeline");
+        gst_buffer_unmap (buffer, &info);
 
-    src = gst_element_factory_make ("fakesrc", "src");
-    colorspace = gst_element_factory_make ("ffmpegcolorspace", "colorspace");
-    scale = gst_element_factory_make ("videoscale", "scale");
-    filter = gst_element_factory_make ("capsfilter", "filter");
-    sink = gst_element_factory_make ("fakesink", "sink");
-
-    gst_bin_add_many (GST_BIN (pipeline), src, colorspace, scale,
-                      filter, sink, NULL);
-
-    g_object_set (filter,
-                  "caps", pb_caps,
-                  NULL);
-    g_object_set (src,
-                  "num-buffers", 1,
-                  "sizetype", 2,
-                  "sizemax", gst_buffer_get_size (buffer),
-                  "signal-handoffs", TRUE,
-                  NULL);
-    g_signal_connect (src, "handoff",
-                      G_CALLBACK (push_buffer), buffer);
-
-    g_object_set (sink,
-                  "signal-handoffs", TRUE,
-                  "preroll-queue-len", 1,
-                  NULL);
-    g_signal_connect (sink, "handoff",
-                      G_CALLBACK (pull_buffer), &out_buffer);
-
-    ret = gst_element_link (src, colorspace);
-    if (ret == FALSE) {
-        g_warning ("Failed to link src->colorspace");
-        return NULL;
-    }
-
-    ret = gst_element_link (colorspace, scale);
-    if (ret == FALSE) {
-        g_warning ("Failed to link colorspace->scale");
-        return NULL;
-    }
-
-    ret = gst_element_link (scale, filter);
-    if (ret == FALSE) {
-        g_warning ("Failed to link scale->filter");
-        return NULL;
-    }
-
-    ret = gst_element_link (filter, sink);
-    if (ret == FALSE) {
-        g_warning ("Failed to link filter->sink");
-        return NULL;
-    }
-
-    bus = gst_element_get_bus (GST_ELEMENT (pipeline));
-    state = gst_element_set_state (GST_ELEMENT (pipeline), GST_STATE_PLAYING);
-
-    i = 0;
-    msg = NULL;
-    while (msg == NULL && i < 5) {
-        msg = gst_bus_timed_pop_filtered (bus, GST_SECOND,
-                                          GST_MESSAGE_ERROR | GST_MESSAGE_EOS);
-        i++;
-    }
-
-    /* FIXME: Notify about error? */
-    gst_message_unref (msg);
-
-    gst_caps_unref (pb_caps);
-
-    if (out_buffer) {
-        GdkPixbuf *pixbuf = NULL;
-        GstMapInfo info;
-        gchar *data;
-
-        if (gst_buffer_map (out_buffer, &info, GST_MAP_READ)) {
-            data = g_memdup (info.data, info.size);
-            pixbuf = gdk_pixbuf_new_from_data ((guchar *) data,
-                                               GDK_COLORSPACE_RGB, FALSE,
-                                               8, dw, dh, GST_ROUND_UP_4 (dw * 3),
-                                               (GdkPixbufDestroyNotify) g_free,
-                                               NULL);
-
-            gst_buffer_unmap (out_buffer, &info);
-        }
-
-        gst_buffer_unref (buffer);
         return pixbuf;
     }
 
-    /* FIXME: Check what buffers need freed */
     return NULL;
 }
 
@@ -188,7 +75,13 @@ gst_video_thumbnailer_get_shot (const gchar  *location,
 
     playbin = gst_element_factory_make ("playbin", "playbin");
     audio_sink = gst_element_factory_make ("fakesink", "audiosink");
-    video_sink = gst_element_factory_make ("fakesink", "videosink");
+    video_sink = gst_element_factory_make ("appsink", "videosink");
+
+    gst_app_sink_set_caps (GST_APP_SINK (video_sink),
+                           gst_caps_new_simple ("video/x-raw",
+                                                "format", G_TYPE_STRING, "RGB",
+                                                "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
+                                                NULL));
 
     g_object_set (playbin,
                   "uri", uri,
@@ -211,7 +104,6 @@ gst_video_thumbnailer_get_shot (const gchar  *location,
         }
     }
 
-
     if (g_cancellable_is_cancelled (cancellable)) {
         g_print ("Video %s was cancelled\n", uri);
         state = GST_STATE_CHANGE_FAILURE;
@@ -223,9 +115,7 @@ gst_video_thumbnailer_get_shot (const gchar  *location,
 
         if (gst_element_query_duration (playbin, GST_FORMAT_TIME, &duration)) {
             gint64 seekpos;
-            GstBuffer *frame;
-            GstPad *pad;
-            GstCaps *caps;
+            GstSample *sample;
 
             if (duration > 0) {
                 if (duration / (3 * GST_SECOND) > 90) {
@@ -252,22 +142,18 @@ gst_video_thumbnailer_get_shot (const gchar  *location,
                 count++;
             }
 
-            g_object_get (playbin,
-                          "frame", &frame,
-                          NULL);
-            if (frame == NULL) {
+            sample = gst_base_sink_get_last_sample (GST_BASE_SINK (video_sink));
+            if (sample == NULL) {
                 g_warning ("No frame for %s", uri);
                 shot = NULL;
                 goto finish;
             }
 
-            pad = gst_element_get_static_pad (video_sink, "sink");
-            caps = gst_pad_get_current_caps (pad);
-            shot = convert_buffer_to_pixbuf (caps, frame, cancellable);
+            shot = convert_buffer_to_pixbuf (gst_sample_get_caps (sample),
+                                             gst_sample_get_buffer (sample),
+                                             cancellable);
 
-            gst_caps_unref (caps);
-            g_object_unref (pad);
-
+            gst_sample_unref (sample);
         }
     }
 
