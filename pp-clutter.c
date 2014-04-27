@@ -1006,8 +1006,10 @@ clutter_renderer_init (PinPointRenderer   *pp_renderer,
 
   clutter_stage_set_user_resizable (CLUTTER_STAGE (stage), TRUE);
 
-  if (pp_fullscreen)
+  if (pp_fullscreen) {
     pp_set_fullscreen (renderer, CLUTTER_STAGE (stage), TRUE);
+    pp_inhibit (renderer, pp_fullscreen);
+  }
 
   renderer->path = pinpoint_file;
   if (renderer->path)
