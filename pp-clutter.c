@@ -1173,7 +1173,7 @@ setup_camera (PinPointRenderer *renderer,
                        "texture", texture, NULL);
 
   /* make videotestsrc spit the format we want */
-  caps = gst_caps_new_simple ("video/x-raw-yuv", NULL);
+  caps = gst_caps_new_simple ("video/x-raw", NULL);
 
   if (point->camera_framerate)
     {
