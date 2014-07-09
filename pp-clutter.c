@@ -209,6 +209,8 @@ static gboolean key_pressed (ClutterActor    *actor,
 static gboolean mouse_clicked  (ClutterActor    *actor,
                                 ClutterEvent    *event,
                                 ClutterRenderer *renderer);
+static void     pp_inhibit (ClutterRenderer *renderer,
+                            gboolean         fullscreen);
 
 static void
 pp_actor_animate (ClutterActor         *actor,
