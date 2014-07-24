@@ -319,6 +319,21 @@ _cairo_render_background (CairoRenderer *renderer,
 
   switch (point->bg_type)
     {
+    case PP_BG_NONE:
+      {
+        ClutterColor color = {0, 0, 0, 255};
+
+        clutter_color_from_string (&color, point->stage_color);
+        g_message ("paint bg none %i/%i/%i/%i",
+                   color.red, color.green, color.blue, color.alpha);
+        cairo_set_source_rgba (renderer->ctx,
+                               color.red / 255.f,
+                               color.green / 255.f,
+                               color.blue / 255.f,
+                               color.alpha / 255.f);
+        cairo_paint (renderer->ctx);
+      }
+      break;
     case PP_BG_COLOR:
       {
         ClutterColor color;
