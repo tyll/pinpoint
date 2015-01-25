@@ -497,6 +497,8 @@ static gboolean stage_left (ClutterActor *actor,
 
   hide_cursor = 0;
   clutter_stage_show_cursor (CLUTTER_STAGE (actor));
+
+  return FALSE;
 }
 
 static gboolean stage_motion (ClutterActor *actor,
