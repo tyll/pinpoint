@@ -182,7 +182,7 @@ typedef struct
   ClutterActor     *shading;
 
 #ifdef USE_CLUTTER_GST
-  GstElement       *pipeline; /* used for the custom camera pipeline */
+  ClutterGstPlayer *player;
 #endif
 } ClutterPointData;
 
@@ -1116,10 +1116,10 @@ _clutter_get_texture (ClutterRenderer *renderer,
 
 #if USE_CLUTTER_GST
 static void
-on_size_changed (ClutterActor *texture,
-                 gint          width,
-                 gint          height,
-                 gpointer      user_data)
+on_size_changed (ClutterGstPlayer *player,
+                 gint              width,
+                 gint              height,
+                 gpointer          user_data)
 {
   PinPointRenderer *pp_renderer = user_data;
   ClutterRenderer *renderer = CLUTTER_RENDERER (pp_renderer);
@@ -1132,13 +1132,13 @@ on_size_changed (ClutterActor *texture,
 
   data = point->data;
 
-  if (data->background != texture)
+  if (data->player != player)
     {
       g_warning ("size changed but not current background ?!");
       return;
     }
 
-  clutter_actor_set_size (texture, width, height);
+  clutter_actor_set_size (data->background, width, height);
   pp_clutter_render_adjust_background (renderer, point);
 }
 
@@ -1148,84 +1148,65 @@ setup_camera (PinPointRenderer *renderer,
 {
   /* These are static to be able to share the texture and the pipeline between
    * all the slides using the camera */
-  static ClutterActor *texture = NULL;
-  static GstElement   *pipeline = NULL;
-
+  static ClutterGstCamera *camera = NULL;
   ClutterPointData *data = point->data;
-  GstElement       *src;
-  GstElement       *capsfilter;
-  GstElement       *sink;
-  GstCaps          *caps;
-  gboolean          result;
 
-  if (texture)
+  if (camera)
     {
-      data->background = clutter_clone_new (texture);
-      data->pipeline = pipeline;
+      data->background =
+        g_object_new (CLUTTER_TYPE_ACTOR,
+                      "content", g_object_new (CLUTTER_GST_TYPE_ASPECTRATIO,
+                                               "player", camera,
+                                               NULL),
+                      "width", 1.0,
+                      "height", 1.0,
+                      NULL);
+      data->player = CLUTTER_GST_PLAYER (camera);
 
+      g_signal_connect (camera, "size-change",
+                        G_CALLBACK (on_size_changed), renderer);
       return TRUE;
     }
 
-  texture = g_object_new (CLUTTER_TYPE_TEXTURE, "disable-slicing", TRUE, NULL);
+  camera = clutter_gst_camera_new ();
 
-  g_signal_connect (CLUTTER_TEXTURE (texture),
-                    "size-change",
+  data->player = CLUTTER_GST_PLAYER (camera);
+  data->background =
+    g_object_new (CLUTTER_TYPE_ACTOR,
+                  "content", g_object_new (CLUTTER_GST_TYPE_ASPECTRATIO,
+                                           "player", camera,
+                                           NULL),
+                  "width", 1.0,
+                  "height", 1.0,
+                  NULL);
+
+  g_signal_connect (camera, "size-change",
                     G_CALLBACK (on_size_changed), renderer);
 
-  /* Set up pipeline */
-  pipeline = gst_pipeline_new (NULL);
+  return TRUE;
+}
 
-  src = gst_element_factory_make ("v4l2src", NULL);
-  if (src == NULL)
-    {
-      g_critical ("Failed to create v4l2src element");
-      g_object_unref (pipeline);
-      return FALSE;
-    }
+static gboolean
+setup_player (PinPointRenderer *renderer,
+              PinPointPoint    *point,
+              const gchar      *file)
+{
+  ClutterPointData *data = point->data;
+  ClutterGstPlayback *playback = clutter_gst_playback_new ();
+  clutter_gst_playback_set_filename (playback, file);
 
-  capsfilter = gst_element_factory_make ("capsfilter", NULL);
-  sink = g_object_new (CLUTTER_GST_TYPE_VIDEO_SINK,
-                       "texture", texture, NULL);
+  data->player = CLUTTER_GST_PLAYER (playback);
+  data->background =
+    g_object_new (CLUTTER_TYPE_ACTOR,
+                  "content", g_object_new (CLUTTER_GST_TYPE_ASPECTRATIO,
+                                           "player", playback,
+                                           NULL),
+                  "width", 1.0,
+                  "height", 1.0,
+                  NULL);
 
-  /* make videotestsrc spit the format we want */
-  caps = gst_caps_new_simple ("video/x-raw", NULL);
-
-  if (point->camera_framerate)
-    {
-      gst_caps_set_simple (caps,
-                           "framerate", GST_TYPE_FRACTION,
-                           point->camera_framerate, 1,
-                           NULL);
-    }
-
-  if (pp_camera_device)
-    g_object_set (src, "device", pp_camera_device, NULL);
-
-#define W (point->camera_resolution.width)
-#define H (point->camera_resolution.height)
-  if (W != 0 && H != 0)
-    {
-      gst_caps_set_simple (caps,
-                           "width", G_TYPE_INT, W,
-                           "height", G_TYPE_INT, H,
-                           NULL);
-    }
-#undef W
-#undef H
-
-  g_object_set (capsfilter, "caps", caps, NULL);
-
-  gst_bin_add_many (GST_BIN (pipeline), src, capsfilter, sink, NULL);
-  result = gst_element_link_many (src, capsfilter, sink, NULL);
-  if (result == FALSE)
-    {
-      g_critical("Could not link elements");
-      gst_object_unref (pipeline);
-      return FALSE;
-    }
-
-  data->background = texture;
-  data->pipeline = pipeline;
+  g_signal_connect (playback, "size-change",
+                    G_CALLBACK (on_size_changed), renderer);
 
   return TRUE;
 }
@@ -1286,12 +1267,7 @@ clutter_renderer_make_point (PinPointRenderer *pp_renderer,
       break;
     case PP_BG_VIDEO:
 #ifdef USE_CLUTTER_GST
-      data->background = clutter_gst_video_texture_new ();
-      clutter_media_set_filename (CLUTTER_MEDIA (data->background), file);
-      g_signal_connect (CLUTTER_TEXTURE (data->background),
-                        "size-change",
-                        G_CALLBACK (on_size_changed), renderer);
-      ret = TRUE;
+      ret = setup_player (pp_renderer, point, file);
 #endif
       break;
     case PP_BG_CAMERA:
@@ -1623,14 +1599,10 @@ static void leave_slide (ClutterRenderer *renderer,
   if (data->background)
     {
 #ifdef USE_CLUTTER_GST
-      if (point->bg_type == PP_BG_CAMERA)
+      if (point->bg_type == PP_BG_CAMERA ||
+          point->bg_type ==  PP_BG_VIDEO)
         {
-          gst_element_set_state (data->pipeline, GST_STATE_PAUSED);
-        }
-      if (CLUTTER_GST_IS_VIDEO_TEXTURE (data->background))
-        {
-          clutter_media_set_playing (CLUTTER_MEDIA (data->background),
-                                     FALSE);
+          clutter_gst_player_set_playing (data->player, FALSE);
         }
 #endif
 #ifdef USE_DAX
@@ -2145,14 +2117,10 @@ show_slide (ClutterRenderer *renderer, gboolean backwards)
       pp_clutter_render_adjust_background (renderer, point);
 
 #ifdef USE_CLUTTER_GST
-      if (point->bg_type == PP_BG_CAMERA)
+      if (point->bg_type == PP_BG_CAMERA ||
+          point->bg_type == PP_BG_VIDEO)
         {
-          gst_element_set_state (data->pipeline, GST_STATE_PLAYING);
-        }
-      else if (CLUTTER_GST_IS_VIDEO_TEXTURE (data->background))
-        {
-          clutter_media_set_progress (CLUTTER_MEDIA (data->background), 0.0);
-          clutter_media_set_playing (CLUTTER_MEDIA (data->background), TRUE);
+          clutter_gst_player_set_playing (data->player, TRUE);
         }
       else
 #endif
