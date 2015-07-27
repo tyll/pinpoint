@@ -1,4 +1,13 @@
-0.1.4 - Schnitzel - 2011-11-15
+Pinpoint 0.1.6 - Bodean's - 2015-07-127
+
+- --ignore-comments to generate slides without comments
+- Switched to a more recent version of GStreamer
+- Switched to a more recent version of Clutter-Gst
+- Background alignment
+- A LOT of fixes.
+- So many other things!
+
+Pinpoint 0.1.4 - Schnitzel - 2011-11-15
 
 - start of a speaker screen, support for speaker notes
   (this part is lacking in documentation and interaction)
@@ -7,7 +16,7 @@
 - Made "fade" be the default transition
 - Inhibit screensaver when running fullscreen
 
-0.1.2 - Sushi Monday - 2011-05-23
+Pinpoint 0.1.2 - Sushi Monday - 2011-05-23
 
 - New background scaling type 'stretch'
 - Handle relative paths fully
@@ -17,7 +26,7 @@
 - Distribute ClutterScript based transitions in tarball
   (without it pinpoint didnt work)
 
-0.1.0 - First release - 2011-05-17
+Pinpoint 0.1.0 - First release - 2011-05-17
 
 Initial feature set: Positioning of text, image backgrounds, video backgrounds,
 transitions, video backgrounds, pdf export, running of commands, editing of

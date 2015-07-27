@@ -1,12 +1,29 @@
+m4_define(pinpoint_major_version, 0)
+m4_define(pinpoint_minor_version, 1)
+m4_define(pinpoint_micro_version, 6)
+
+m4_define([pinpoint_version],
+          [pinpoint_major_version.pinpoint_minor_version.pinpoint_micro_version])
+
 AC_PREREQ(2.53)
-AC_INIT(pinpoint, [0.1.5], [])
+AC_INIT(pinpoint, [pinpoint_version], [])
 AC_CONFIG_SRCDIR(pinpoint.c)
 AC_CONFIG_AUX_DIR([build])
-AM_INIT_AUTOMAKE([foreign -Wno-portability no-define])
+AM_INIT_AUTOMAKE([foreign -Wno-portability no-define no-dist-gzip dist-xz tar-ustar])
 AM_CONFIG_HEADER([config.h])
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 
+PINPOINT_MAJOR_VERSION=pinpoint_major_version
+PINPOINT_MINOR_VERSION=pinpoint_minor_version
+PINPOINT_MICRO_VERSION=pinpoint_micro_version
+PINPOINT_VERSION=pinpoint_version
+AC_SUBST(PINPOINT_MAJOR_VERSION)
+AC_SUBST(PINPOINT_MINOR_VERSION)
+AC_SUBST(PINPOINT_MICRO_VERSION)
+AC_SUBST(PINPOINT_VERSION)
+
 AC_PROG_CC
+AC_PROG_SED
 PKG_PROG_PKG_CONFIG
 AC_HEADER_STDC
 

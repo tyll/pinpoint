@@ -25,3 +25,4 @@ MAINTAINERCLEANFILES = aclocal.m4 compile config.guess config.sub configure depc
 snapshot:
 	$(MAKE) dist distdir=$(PACKAGE)-snap`date +"%Y%m%d"`
 
+include $(top_srcdir)/build/autotools/Makefile.am.release
