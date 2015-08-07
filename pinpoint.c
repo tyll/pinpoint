@@ -952,17 +952,19 @@ pp_parse_slides (PinPointRenderer *renderer,
               }
             break;
         case '#': /* comment */
-          if (startofline && ! pp_ignore_comments)
+          if (startofline)
             {
               const char *end = p + 1;
               while (*end != '\n' && *end != '\0')
                 {
-                  g_string_append_c (notes_str, *end);
+                  if (!pp_ignore_comments)
+                    g_string_append_c (notes_str, *end);
                   end++;
                 }
               if (end)
                 {
-                  g_string_append_c (notes_str, '\n');
+                  if (!pp_ignore_comments)
+                    g_string_append_c (notes_str, '\n');
                   p = end;
                   break;
                 }
