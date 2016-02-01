@@ -104,6 +104,13 @@ static PinPointPoint pin_default_point = {
   .data = NULL,
 };
 
+#ifdef HAVE_PDF
+#define A4_LS_WIDTH   841.88976378
+#define A4_LS_HEIGHT  595.275590551
+
+#define A4_MARGIN     A4_LS_WIDTH * .05
+#endif
+
 static PinPointPoint default_point;
 
 PinPointPoint *point_defaults = &default_point;
@@ -115,6 +122,12 @@ gboolean  pp_speakermode     = FALSE;
 gboolean  pp_rehearse        = FALSE;
 gboolean  pp_ignore_comments = FALSE;
 char     *pp_camera_device   = NULL;
+#ifdef HAVE_PDF
+gfloat pp_output_width = A4_LS_WIDTH;
+gfloat pp_output_height = A4_LS_HEIGHT;
+gfloat pp_output_margin = A4_MARGIN;
+gchar *pp_output_size;
+#endif
 
 static GOptionEntry entries[] =
 {
@@ -131,9 +144,13 @@ static GOptionEntry entries[] =
     "Rehearse timings", NULL},
     { "ignore-comments", 'i', 0, G_OPTION_ARG_NONE, &pp_ignore_comments,
     "don't show comments", NULL},
+#ifdef HAVE_PDF
     { "output", 'o', 0, G_OPTION_ARG_STRING, &pp_output_filename,
       "Output presentation to FILE\n"
 "                                         (formats supported: pdf)", "FILE" },
+    { "output-size", 'S', 0, G_OPTION_ARG_STRING, &pp_output_size,
+     "Size of output PDF", "WIDTHxHEIGHT+MARGIN" },
+#endif
     { "camera", 'c', 0, G_OPTION_ARG_STRING, &pp_camera_device,
       "Device to use for [camera] background", "DEVICE" },
     { NULL }
@@ -239,6 +256,7 @@ main (int    argc,
     {
 #ifdef HAVE_PDF
       renderer = pp_cairo_renderer ();
+      sscanf(pp_output_size, "%fx%f+%f", &pp_output_width, &pp_output_height, &pp_output_margin);
       /* makes more sense to default to a white "stage" colour in PDFs*/
       default_point.stage_color = "white";
 #else

@@ -68,11 +68,6 @@ _destroy_surface (gpointer data)
   cairo_surface_destroy (surface);
 }
 
-#define A4_LS_WIDTH   841.88976378
-#define A4_LS_HEIGHT  595.275590551
-
-#define A4_MARGIN     A4_LS_WIDTH * .05
-
 static void
 cairo_renderer_init (PinPointRenderer *pp_renderer,
                      char             *pinpoint_file)
@@ -80,8 +75,8 @@ cairo_renderer_init (PinPointRenderer *pp_renderer,
   CairoRenderer *renderer = CAIRO_RENDERER (pp_renderer);
 
   /* A4, landscape */
-  renderer->width = A4_LS_WIDTH;
-  renderer->height = A4_LS_HEIGHT;
+  renderer->width = pp_output_width;
+  renderer->height = pp_output_height;
   renderer->surface = cairo_pdf_surface_create (pp_output_filename,
                                                 renderer->width, renderer->height);
   renderer->path = g_strdup (pinpoint_file);
@@ -390,7 +385,7 @@ _cairo_render_background (CairoRenderer *renderer,
         bg_height = cairo_image_surface_get_height (surface);
 
         pp_get_background_position_scale (point,
-                                          renderer->width, A4_LS_HEIGHT,
+                                          renderer->width, pp_output_height,
                                           bg_width, bg_height,
                                           &bg_x, &bg_y,
                                           &bg_scale_x, &bg_scale_y);
@@ -540,7 +535,7 @@ _cairo_render_notes (CairoRenderer *renderer,
   pango_layout_set_alignment (layout, PANGO_ALIGN_LEFT);
 
   cairo_save (renderer->ctx);
-  cairo_translate (renderer->ctx, A4_MARGIN, A4_MARGIN);
+  cairo_translate (renderer->ctx, pp_output_margin, pp_output_margin);
   cairo_set_source_rgba (renderer->ctx, 0., 0., 0., 1);
   pango_cairo_show_layout (renderer->ctx, layout);
   cairo_restore (renderer->ctx);

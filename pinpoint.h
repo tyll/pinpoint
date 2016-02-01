@@ -118,6 +118,9 @@ struct _PinPointPoint
 };
 
 extern char     *pp_output_filename;
+extern gfloat pp_output_width;
+extern gfloat pp_output_height;
+extern gfloat pp_output_margin;
 extern gboolean  pp_fullscreen;
 extern gboolean  pp_maximized;
 extern gboolean  pp_speakermode;
